@@ -8,14 +8,32 @@ import React, { useState, useEffect } from "react";
  * 2. User picks a shop -> we show that shop's products (from the shared
  *    "products" localStorage list, filtered by ownerEmail).
  * 3. User adds products to cart.
- * 4. User checks out -> picks Card or UPI -> places a (mock) order.
+ * 4. User checks out -> picks Cash on Delivery / Card / UPI (with
+ *    PhonePe / Google Pay / Paytm / Other) -> places an order.
+ * 5. Placing the order saves it to the shared "orders" list AND drops a
+ *    notification into the shared "notifications" list, tagged with the
+ *    shop owner's email, so the OwnerDashboard can show "new order" alerts.
  *
  * This is a reference flow for ONE location/shop at a time. Once this
  * works end-to-end, the same pattern extends to many shops/locations
  * since everything is driven by the existing localStorage data.
  */
 
+// ── NEW: UPI app options shown when the user picks UPI ──────────────────
+const UPI_APPS = [
+  { id: "phonepe", label: "PhonePe", emoji: "📱" },
+  { id: "googlepay", label: "Google Pay", emoji: "🟢" },
+  { id: "paytm", label: "Paytm", emoji: "🔵" },
+  { id: "other", label: "Other UPI App", emoji: "💳" },
+];
+// ──────────────────────────────────────────────────────────────────────────
+
 const UserDashboard = () => {
+  // ── NEW: who's actually buying, so the shop knows who placed the order ──
+  const currentUser =
+    JSON.parse(localStorage.getItem("currentUser")) || {};
+  // ──────────────────────────────────────────────────────────────────────────
+
   const [view, setView] = useState("location"); // location | products | payment | success
 
   // ---- Location & shop search ----
@@ -31,7 +49,7 @@ const UserDashboard = () => {
   const [cart, setCart] = useState([]);
 
   // ---- Payment ----
-  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState("card"); // cod | card | upi
   const [cardDetails, setCardDetails] = useState({
     number: "",
     name: "",
@@ -39,6 +57,11 @@ const UserDashboard = () => {
     cvv: "",
   });
   const [upiId, setUpiId] = useState("");
+  // ── NEW: which UPI app the user picked ──
+  const [upiApp, setUpiApp] = useState("phonepe");
+  // ── NEW: keep the full placed order so the success screen can show
+  // the real payment label + delivery status ──
+  const [lastOrder, setLastOrder] = useState(null);
   const [orderTotal, setOrderTotal] = useState(0);
 
   useEffect(() => {
@@ -145,14 +168,76 @@ const UserDashboard = () => {
         alert("Please fill all card details.");
         return;
       }
-    } else {
+    } else if (paymentMethod === "upi") {
       if (!upiId) {
         alert("Please enter your UPI ID.");
         return;
       }
     }
+    // Cash on Delivery needs no extra details.
+
+    // ── NEW: build a friendly payment label for this order ──
+    const paymentLabel =
+      paymentMethod === "cod"
+        ? "Cash on Delivery"
+        : paymentMethod === "card"
+        ? "Card"
+        : `${UPI_APPS.find((a) => a.id === upiApp)?.label || "UPI"} (UPI)`;
+
+    const hasDelivery = cart.some((item) => item.delivery);
+
+    // ── NEW: save the order, tagged with the shop owner's email ──
+    const orderRecord = {
+      id: Date.now(),
+      ownerEmail: selectedShop.email,
+      shopName: selectedShop.shopName,
+      buyerEmail: currentUser.email || "",
+      buyerName: currentUser.name || "Guest",
+      items: cart.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        delivery: !!item.delivery,
+      })),
+      total: cartTotal,
+      paymentMethod,
+      paymentApp: paymentMethod === "upi" ? upiApp : null,
+      paymentLabel,
+      deliveryAvailable: hasDelivery,
+      status: "Placed",
+      createdAt: new Date().toISOString(),
+    };
+
+    const existingOrders =
+      JSON.parse(localStorage.getItem("orders")) || [];
+
+    localStorage.setItem(
+      "orders",
+      JSON.stringify([orderRecord, ...existingOrders])
+    );
+
+    // ── NEW: drop a notification for that shop owner ──
+    const notification = {
+      id: Date.now() + 1,
+      ownerEmail: selectedShop.email,
+      orderId: orderRecord.id,
+      message: `🛒 New order from ${orderRecord.buyerName} — ₹${cartTotal} via ${paymentLabel}`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const existingNotifications =
+      JSON.parse(localStorage.getItem("notifications")) || [];
+
+    localStorage.setItem(
+      "notifications",
+      JSON.stringify([notification, ...existingNotifications])
+    );
+    // ──────────────────────────────────────────────────────────────────
 
     setOrderTotal(cartTotal);
+    setLastOrder(orderRecord);
     setView("success");
   };
 
@@ -165,6 +250,8 @@ const UserDashboard = () => {
     setPaymentMethod("card");
     setCardDetails({ number: "", name: "", expiry: "", cvv: "" });
     setUpiId("");
+    setUpiApp("phonepe"); // ── NEW
+    setLastOrder(null); // ── NEW
     setView("location");
     loadShops();
   };
@@ -347,7 +434,18 @@ const UserDashboard = () => {
           <div style={styles.card}>
             <h2 style={styles.heading}>💳 Payment Method</h2>
 
+            {/* ── NEW: Cash on Delivery added alongside Card / UPI ── */}
             <div style={styles.toggleRow}>
+              <button
+                style={
+                  paymentMethod === "cod"
+                    ? styles.toggleBtnActive
+                    : styles.toggleBtn
+                }
+                onClick={() => setPaymentMethod("cod")}
+              >
+                Cash on Delivery
+              </button>
               <button
                 style={
                   paymentMethod === "card"
@@ -370,7 +468,15 @@ const UserDashboard = () => {
               </button>
             </div>
 
-            {paymentMethod === "card" ? (
+            {/* ── NEW: Cash on Delivery note ── */}
+            {paymentMethod === "cod" && (
+              <p style={styles.codNote}>
+                💵 Pay with cash when your order arrives (or when you pick
+                it up). No payment details needed right now.
+              </p>
+            )}
+
+            {paymentMethod === "card" && (
               <>
                 <input
                   type="text"
@@ -407,14 +513,37 @@ const UserDashboard = () => {
                   />
                 </div>
               </>
-            ) : (
-              <input
-                type="text"
-                placeholder="Enter UPI ID (e.g. name@bank)"
-                value={upiId}
-                onChange={(e) => setUpiId(e.target.value)}
-                style={styles.input}
-              />
+            )}
+
+            {/* ── NEW: UPI app picker (PhonePe / Google Pay / Paytm / Other) ── */}
+            {paymentMethod === "upi" && (
+              <>
+                <div style={styles.upiAppRow}>
+                  {UPI_APPS.map((app) => (
+                    <button
+                      key={app.id}
+                      style={
+                        upiApp === app.id
+                          ? styles.upiAppBtnActive
+                          : styles.upiAppBtn
+                      }
+                      onClick={() => setUpiApp(app.id)}
+                    >
+                      {app.emoji} {app.label}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder={`Enter your ${
+                    UPI_APPS.find((a) => a.id === upiApp)?.label || "UPI"
+                  } ID (e.g. name@bank)`}
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  style={styles.input}
+                />
+              </>
             )}
 
             <button style={styles.button} onClick={placeOrder}>
@@ -429,8 +558,18 @@ const UserDashboard = () => {
         <div style={styles.successCard}>
           <h2 style={styles.heading}>🎉 Order Placed Successfully!</h2>
           <p>Amount Paid: ₹{orderTotal}</p>
+          {/* ── NEW: real payment method + delivery status + notify note ── */}
           <p style={styles.shopDetail}>
-            Paid via {paymentMethod === "card" ? "Card" : "UPI"}
+            Paid via {lastOrder?.paymentLabel || "—"}
+          </p>
+          <p style={styles.shopDetail}>
+            {lastOrder?.deliveryAvailable
+              ? "🚚 Delivery available for this order"
+              : "🏃 Pickup only — no delivery for this order"}
+          </p>
+          <p style={styles.shopDetail}>
+            The shop has been notified of your order and will get back to
+            you shortly.
           </p>
           <button style={styles.button} onClick={startNewOrder}>
             Start New Order
@@ -604,6 +743,42 @@ const styles = {
     borderRadius: "8px",
     border: "1px solid #43cea2",
     background: "#43cea2",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+  // ── NEW: Cash on Delivery note + UPI app picker styles ──
+  codNote: {
+    background: "#fef9c3",
+    border: "1px solid #fde68a",
+    borderRadius: "8px",
+    padding: "14px",
+    color: "#854d0e",
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: "10px",
+  },
+  upiAppRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "10px",
+    marginBottom: "15px",
+  },
+  upiAppBtn: {
+    flex: "1 1 120px",
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+    background: "#f3f4f6",
+    cursor: "pointer",
+    fontWeight: "bold",
+  },
+  upiAppBtnActive: {
+    flex: "1 1 120px",
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #185a9d",
+    background: "#185a9d",
     color: "white",
     cursor: "pointer",
     fontWeight: "bold",

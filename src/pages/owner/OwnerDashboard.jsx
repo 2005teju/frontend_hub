@@ -42,6 +42,11 @@ const OwnerDashboard = () => {
 
   const [products, setProducts] = useState([]);
 
+  // ── NEW: order notifications + the orders themselves, for this shop ──
+  const [notifications, setNotifications] = useState([]);
+  const [shopOrders, setShopOrders] = useState([]);
+  // ──────────────────────────────────────────────────────────────────────
+
   const [form, setForm] = useState({
     name: "",
     price: "",
@@ -79,7 +84,61 @@ const OwnerDashboard = () => {
           currentUser.email
       )
     );
+
+    // ── NEW: pull in this shop's order notifications + orders ──
+    const allNotifications =
+      JSON.parse(
+        localStorage.getItem("notifications")
+      ) || [];
+
+    setNotifications(
+      allNotifications
+        .filter((n) => n.ownerEmail === currentUser.email)
+        .sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        )
+    );
+
+    const allOrders =
+      JSON.parse(localStorage.getItem("orders")) || [];
+
+    setShopOrders(
+      allOrders
+        .filter((o) => o.ownerEmail === currentUser.email)
+        .sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        )
+    );
+    // ──────────────────────────────────────────────────────────────────
   };
+
+  // ── NEW: mark one order notification as read ──
+  const markNotificationRead = (id) => {
+    const allNotifications =
+      JSON.parse(localStorage.getItem("notifications")) || [];
+
+    const updated = allNotifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n
+    );
+
+    localStorage.setItem(
+      "notifications",
+      JSON.stringify(updated)
+    );
+
+    setNotifications(
+      updated
+        .filter((n) => n.ownerEmail === currentUser.email)
+        .sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        )
+    );
+  };
+
+  const unreadNotificationCount = notifications.filter(
+    (n) => !n.read
+  ).length;
+  // ──────────────────────────────────────────────────────────────────────
 
   const handleOwnerChange = (e) => {
     const { name, value } = e.target;
@@ -649,6 +708,130 @@ const OwnerDashboard = () => {
                   ))
                 )}
               </div>
+
+              {/* ── NEW: Order Notifications ─────────────────────────── */}
+              <h2 style={styles.subTitle}>
+                📦 Order Notifications
+                {unreadNotificationCount > 0
+                  ? ` (${unreadNotificationCount} new)`
+                  : ""}
+              </h2>
+
+              <div style={styles.card}>
+                {notifications.length === 0 ? (
+                  <p>No notifications yet.</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      style={{
+                        ...styles.notificationRow,
+                        ...(n.read
+                          ? {}
+                          : styles.notificationRowUnread),
+                      }}
+                    >
+                      <div>
+                        <p style={{ margin: 0 }}>
+                          {n.message}
+                        </p>
+                        <p
+                          style={{
+                            margin: "4px 0 0",
+                            fontSize: "12px",
+                            color: "#6b7280",
+                          }}
+                        >
+                          {new Date(
+                            n.createdAt
+                          ).toLocaleString()}
+                        </p>
+                      </div>
+
+                      {!n.read && (
+                        <button
+                          style={styles.markReadBtn}
+                          onClick={() =>
+                            markNotificationRead(n.id)
+                          }
+                        >
+                          Mark as read
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* ── NEW: Orders Received ────────────────────────────────── */}
+              <h2 style={styles.subTitle}>
+                🧾 Orders Received
+              </h2>
+
+              <div style={styles.grid}>
+                {shopOrders.length === 0 ? (
+                  <p
+                    style={{
+                      color: "#fff",
+                      textAlign: "center",
+                      gridColumn: "1/-1",
+                    }}
+                  >
+                    No orders yet.
+                  </p>
+                ) : (
+                  shopOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      style={styles.product}
+                    >
+                      <h3>{order.buyerName}</h3>
+
+                      <p>
+                        <strong>
+                          Total: ₹{order.total}
+                        </strong>
+                      </p>
+
+                      <p>
+                        <strong>Payment:</strong>{" "}
+                        {order.paymentLabel}
+                      </p>
+
+                      <p>
+                        {order.deliveryAvailable
+                          ? "🚚 Delivery Requested"
+                          : "🏃 Pickup Only"}
+                      </p>
+
+                      <p>
+                        <strong>Status:</strong>{" "}
+                        {order.status}
+                      </p>
+
+                      <div
+                        style={{
+                          textAlign: "left",
+                          marginTop: "10px",
+                        }}
+                      >
+                        {order.items.map((item, i) => (
+                          <p
+                            key={i}
+                            style={{
+                              fontSize: "14px",
+                              margin: "2px 0",
+                            }}
+                          >
+                            • {item.name} — ₹{item.price}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {/* ──────────────────────────────────────────────────────────── */}
             </>
             )}
         </>
@@ -812,6 +995,34 @@ const styles = {
     marginTop: "15px",
     cursor: "pointer",
     fontWeight: "bold",
+  },
+
+  // ── NEW: notification row styles ──
+  notificationRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "10px",
+    padding: "12px 0",
+    borderBottom: "1px solid #eee",
+  },
+
+  notificationRowUnread: {
+    background: "#eff6ff",
+    borderRadius: "8px",
+    padding: "12px",
+  },
+
+  markReadBtn: {
+    background: "#2563eb",
+    color: "#fff",
+    border: "none",
+    padding: "8px 12px",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "13px",
+    whiteSpace: "nowrap",
   },
 };
 
