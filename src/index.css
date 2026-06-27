@@ -1,0 +1,19 @@
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Body Style */
+body {
+  font-family: Arial, sans-serif;
+  background-color: #e6f2ff; /* light blue */
+  color: #333;
+}
+
+/* Links */
+a {
+  text-decoration: none;
+  color: inherit;
+}
