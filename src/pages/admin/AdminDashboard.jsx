@@ -293,7 +293,9 @@ export default function AdminDashboard({ onLogout }) {
           border:1px solid #eee;
           border-radius:18px;
           padding:20px;
-          margin-bottom:20px;
+          /* ── NEW: fixed-width flex item so cards sit in a horizontal row ── */
+          flex:0 0 260px;
+          width:260px;
         }
 
         .product-card img{
@@ -393,6 +395,12 @@ export default function AdminDashboard({ onLogout }) {
         .owner-accordion-body{
           padding:20px 25px;
           background:#fff;
+          /* ── NEW: lay this owner's products out horizontally, scroll if many ── */
+          display:flex;
+          flex-direction:row;
+          gap:20px;
+          overflow-x:auto;
+          align-items:flex-start;
         }
         /* ──────────────────────────────────────────────────────────────────── */
       `}</style>
