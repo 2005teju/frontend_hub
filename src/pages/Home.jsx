@@ -26,7 +26,7 @@ const Home = () => {
                     color: white;
                     background: 
                         linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
-                        url('/hero.jpeg.png'); 
+                        url('/hero.webp'); 
                     background-size: cover;
                     background-position: center;
                     box-shadow: inset 0 0 100px rgba(0,0,0,0.2);
