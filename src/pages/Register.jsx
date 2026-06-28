@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import registerImage from "../assets/register-image.jpeg";
 
 function Register() {
   const navigate = useNavigate();
@@ -12,7 +13,6 @@ function Register() {
     role: "user",
   });
 
-  // ── NEW: show/hide toggles for Password and Confirm Password ──
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -31,13 +31,10 @@ function Register() {
       return;
     }
 
-    const users =
-      JSON.parse(localStorage.getItem("users")) || [];
+    const users = JSON.parse(localStorage.getItem("users")) || [];
 
     const exists = users.find(
-      (u) =>
-        u.email.toLowerCase() ===
-        data.email.trim().toLowerCase()
+      (u) => u.email.toLowerCase() === data.email.trim().toLowerCase()
     );
 
     if (exists) {
@@ -46,39 +43,29 @@ function Register() {
     }
 
     if (data.role === "admin") {
-      const adminExists = users.some(
-        (u) => u.role === "admin"
-      );
+      const adminExists = users.some((u) => u.role === "admin");
 
       if (adminExists) {
-        alert(
-          "Admin account already exists. Only one admin is allowed."
-        );
+        alert("Admin account already exists. Only one admin is allowed.");
         return;
       }
     }
 
     const newUser = {
       name: data.name.trim(),
-      email: data.email
-        .trim()
-        .toLowerCase(),
+      email: data.email.trim().toLowerCase(),
       password: data.password,
       role: data.role,
       loginCount: 0,
       lastLogin: "",
-      approved:
-        data.role === "owner"
-          ? false
-          : true,
+      approved: data.role === "owner" ? false : true,
       products: [],
       notifications:
         data.role === "owner"
           ? [
               {
                 id: Date.now(),
-                message:
-                  "Your shop account is waiting for Admin approval.",
+                message: "Your shop account is waiting for Admin approval.",
                 read: false,
               },
             ]
@@ -87,19 +74,14 @@ function Register() {
 
     users.push(newUser);
 
-    localStorage.setItem(
-      "users",
-      JSON.stringify(users)
-    );
+    localStorage.setItem("users", JSON.stringify(users));
 
     if (data.role === "owner") {
       alert(
         "Registration successful! Your Shop Owner account is waiting for Admin approval."
       );
     } else {
-      alert(
-        "Registration Successful!"
-      );
+      alert("Registration Successful!");
     }
 
     navigate("/login");
@@ -143,20 +125,14 @@ function Register() {
 
         .register-visual-panel{
           flex:1.3;
-          background:
-            linear-gradient(
-              rgba(15,23,42,.15),
-              rgba(15,23,42,.75)
-            ),
-            url(""C:\Users\Tejashwini\OneDrive\Pictures\WhatsApp Image 2026-06-28 at 5.35.58 PM.jpeg");
-
-          background-size:cover;
-          background-position:center;
           padding:60px;
           display:flex;
           flex-direction:column;
           justify-content:flex-end;
           position:relative;
+          background-image:url(${registerImage});
+          background-size:cover;
+          background-position:center;
         }
 
         .brand-marker{
@@ -248,7 +224,6 @@ function Register() {
           background:white;
         }
 
-        /* NEW: password field wrapper + eye icon button */
         .password-field-wrapper{
           position:relative;
           width:100%;
@@ -328,38 +303,25 @@ function Register() {
 
       <div className="register-glass-card">
         <div className="register-visual-panel">
-          <div className="brand-marker">
-            📍 Nearby Hub
-          </div>
+          <div className="brand-marker">📍 Nearby Hub</div>
 
           <div className="onboarding-content">
             <h1>Claim Your Spot.</h1>
 
-            <p>
-              Connect, discover, and grow with
-              your local community.
-            </p>
+            <p>Connect, discover, and grow with your local community.</p>
           </div>
         </div>
 
         <div className="register-form-panel">
-          <div className="tag">
-            🚀 Join Nearby Hub
-          </div>
+          <div className="tag">🚀 Join Nearby Hub</div>
 
           <div className="reg-greet">
             <h2>Create Account</h2>
 
-            <p>
-              Start your digital neighborhood
-              journey.
-            </p>
+            <p>Start your digital neighborhood journey.</p>
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="form-grid"
-          >
+          <form onSubmit={handleSubmit} className="form-grid">
             <div className="reg-group">
               <label>Full Name</label>
 
@@ -397,24 +359,17 @@ function Register() {
                 onChange={handleChange}
                 className="reg-input"
               >
-                <option value="user">
-                  User
-                </option>
+                <option value="user">User</option>
 
-                <option value="owner">
-                  Shop Owner
-                </option>
+                <option value="owner">Shop Owner</option>
 
-                <option value="admin">
-                  Admin
-                </option>
+                <option value="admin">Admin</option>
               </select>
             </div>
 
             <div className="reg-group">
               <label>Password</label>
 
-              {/* NEW: wrapper + eye toggle for Password */}
               <div className="password-field-wrapper">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -448,11 +403,8 @@ function Register() {
             </div>
 
             <div className="reg-group">
-              <label>
-                Confirm Password
-              </label>
+              <label>Confirm Password</label>
 
-              {/* NEW: wrapper + eye toggle for Confirm Password */}
               <div className="password-field-wrapper">
                 <input
                   type={showConfirmPassword ? "text" : "password"}
@@ -485,23 +437,14 @@ function Register() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="btn-register-prime"
-            >
+            <button type="submit" className="btn-register-prime">
               Create Account →
             </button>
           </form>
 
           <p className="reg-footer">
             Already have an account?{" "}
-            <span
-              onClick={() =>
-                navigate("/login")
-              }
-            >
-              Login
-            </span>
+            <span onClick={() => navigate("/login")}>Login</span>
           </p>
         </div>
       </div>
