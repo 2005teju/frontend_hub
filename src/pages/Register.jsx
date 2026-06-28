@@ -148,7 +148,7 @@ function Register() {
               rgba(15,23,42,.15),
               rgba(15,23,42,.75)
             ),
-            url("https://workik.com/pstatic/348765/AIWorkspaceCodeFiles/pTDfZG96DmhwuRQ7gReT/AIImages/6168247e-becd-4a45-a440-6e9e9b49d533.png");
+            url(""C:\Users\Tejashwini\OneDrive\Pictures\WhatsApp Image 2026-06-28 at 5.35.58 PM.jpeg");
 
           background-size:cover;
           background-position:center;
