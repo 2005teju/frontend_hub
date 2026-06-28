@@ -82,15 +82,17 @@ const UserDashboard = ({ onLogout }) => {
     );
   };
 
-  const filteredShops = locationSearch.trim()
-    ? shops.filter((s) => {
-        const search = locationSearch.trim().toLowerCase();
-        return (
-          s.address.toLowerCase().includes(search) ||
-          s.shopName.toLowerCase().includes(search)
-        );
-      })
-    : [];
+ const filteredShops = locationSearch.trim()
+  ? shops.filter((s) => {
+      const search = locationSearch.trim().toLowerCase();
+      const address = s.address.toLowerCase();
+
+      return address
+        .split(",")
+        .map((part) => part.trim())
+        .includes(search);
+    })
+  : [];
 
   const selectShop = (shop) => {
     setSelectedShop(shop);
