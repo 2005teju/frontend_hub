@@ -41,7 +41,6 @@ function Register() {
       return;
     }
 
-    // Only one admin allowed
     if (data.role === "admin") {
       const adminExists = users.some(
         (u) => u.role === "admin"
@@ -62,21 +61,13 @@ function Register() {
         .toLowerCase(),
       password: data.password,
       role: data.role,
-
-      // Login Tracking
       loginCount: 0,
       lastLogin: "",
-
-      // Owner approval system
       approved:
         data.role === "owner"
           ? false
           : true,
-
-      // Products for shop owners
       products: [],
-
-      // Notifications
       notifications:
         data.role === "owner"
           ? [
@@ -253,6 +244,34 @@ function Register() {
           background:white;
         }
 
+        /* NEW: password field wrapper + eye icon button */
+        .password-field-wrapper{
+          position:relative;
+          width:100%;
+        }
+
+        .password-field-wrapper .reg-input{
+          padding-right:50px;
+        }
+
+        .password-toggle-btn{
+          position:absolute;
+          right:14px;
+          top:50%;
+          transform:translateY(-50%);
+          background:none;
+          border:none;
+          cursor:pointer;
+          color:#64748b;
+          display:flex;
+          align-items:center;
+          padding:4px;
+        }
+
+        .password-toggle-btn:hover{
+          color:#4f46e5;
+        }
+
         .btn-register-prime{
           width:100%;
           padding:18px;
@@ -391,15 +410,37 @@ function Register() {
             <div className="reg-group">
               <label>Password</label>
 
-              <input
-                type="password"
-                name="password"
-                value={data.password}
-                onChange={handleChange}
-                className="reg-input"
-                placeholder="Create password"
-                required
-              />
+              {/* NEW: wrapper + eye toggle for Password */}
+              <div className="password-field-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={data.password}
+                  onChange={handleChange}
+                  className="reg-input"
+                  placeholder="Create password"
+                  required
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="reg-group">
@@ -407,15 +448,37 @@ function Register() {
                 Confirm Password
               </label>
 
-              <input
-                type="password"
-                name="confirmPassword"
-                value={data.confirmPassword}
-                onChange={handleChange}
-                className="reg-input"
-                placeholder="Confirm password"
-                required
-              />
+              {/* NEW: wrapper + eye toggle for Confirm Password */}
+              <div className="password-field-wrapper">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={data.confirmPassword}
+                  onChange={handleChange}
+                  className="reg-input"
+                  placeholder="Confirm password"
+                  required
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <button
