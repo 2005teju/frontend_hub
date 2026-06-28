@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import api from "../../api";
 
 const UPI_APPS = [
   { id: "phonepe", label: "PhonePe", emoji: "📱" },
@@ -46,63 +47,66 @@ const UserDashboard = ({ onLogout }) => {
     loadMyOrders();
   }, []);
 
-  const loadShops = () => {
-    const requests =
-      JSON.parse(localStorage.getItem("shopVerificationRequests")) || [];
+  const loadShops = async () => {
+    try {
+      // Pulls only verified shops straight from MongoDB
+      const verifiedShops = await api.getShops("?verified=true");
+      setShops(
+        verifiedShops.map((s) => ({
+          email: s.ownerEmail,
+          ownerName: s.name,
+          phone: s.phone,
+          shopName: s.shopName,
+          address: s.address,
+          verified: s.verified,
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to load shops:", err.message);
+    }
+  };
 
-    const verifiedShops = requests
-      .map((r) => {
-        const liveShop =
-          JSON.parse(localStorage.getItem(`shop_${r.email}`)) || {};
+  // ── load orders placed by this buyer (used for My Orders / History) ──
+  const loadMyOrders = async () => {
+    try {
+      const orders = await api.getMyOrders();
+      setMyOrders(
+        orders.map((o) => ({
+          id: o._id,
+          shopName: o.shopName,
+          total: o.total,
+          paymentLabel: o.paymentMethod === "card" ? "Card" : "UPI",
+          status: o.status,
+          items: o.items,
+          createdAt: o.createdAt,
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to load my orders:", err.message);
+    }
+  };
 
-        return {
-          email: r.email,
-          ownerName: liveShop.name || r.name,
-          phone: liveShop.phone || r.phone,
-          shopName: liveShop.shopName || r.shopName,
-          address: liveShop.address || r.address,
-          verified:
-            liveShop.verified !== undefined
-              ? liveShop.verified
-              : r.verified || false,
-        };
+  const filteredShops = locationSearch.trim()
+    ? shops.filter((s) => {
+        const search = locationSearch.trim().toLowerCase();
+        return (
+          s.address.toLowerCase().includes(search) ||
+          s.shopName.toLowerCase().includes(search)
+        );
       })
-      .filter((s) => s.verified);
+    : [];
 
-    setShops(verifiedShops);
-  };
-
-  // ── NEW: load orders placed by this buyer (used for My Orders / History) ──
-  const loadMyOrders = () => {
-    const allOrders = JSON.parse(localStorage.getItem("orders")) || [];
-    setMyOrders(
-      allOrders
-        .filter((o) => o.buyerEmail === currentUser.email)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    );
-  };
-
- const filteredShops = locationSearch.trim()
-  ? shops.filter((s) => {
-      const search = locationSearch.trim().toLowerCase();
-      const address = s.address.toLowerCase();
-
-      return address
-        .split(",")
-        .map((part) => part.trim())
-        .includes(search);
-    })
-  : [];
-
-  const selectShop = (shop) => {
+  const selectShop = async (shop) => {
     setSelectedShop(shop);
 
-    const allProducts =
-      JSON.parse(localStorage.getItem("products")) || [];
-
-    setShopProducts(
-      allProducts.filter((p) => p.ownerEmail === shop.email)
-    );
+    try {
+      // Loads this shop's products straight from MongoDB
+      const products = await api.getProductsByShop(shop.email);
+      setShopProducts(products);
+    } catch (err) {
+      console.error("Failed to load shop products:", err.message);
+      setShopProducts([]);
+    }
 
     setProductSearch("");
     setView("products");
@@ -138,7 +142,7 @@ const UserDashboard = ({ onLogout }) => {
     setCardDetails((prev) => ({ ...prev, [name]: value }));
   };
 
-  const placeOrder = () => {
+  const placeOrder = async () => {
     if (cart.length === 0) {
       alert("Your cart is empty.");
       return;
@@ -159,68 +163,46 @@ const UserDashboard = ({ onLogout }) => {
         alert("Please enter your UPI ID.");
         return;
       }
+    } else if (paymentMethod === "cod") {
+      // NOTE: the backend's Order model currently only accepts "card" or
+      // "upi" as paymentMethod (Cash on Delivery isn't supported there yet).
+      alert(
+        "Cash on Delivery isn't supported by the backend yet — please choose Card or UPI, or ask your backend dev to add \"cod\" to the Order model's paymentMethod enum."
+      );
+      return;
     }
 
     const paymentLabel =
-      paymentMethod === "cod"
-        ? "Cash on Delivery"
-        : paymentMethod === "card"
+      paymentMethod === "card"
         ? "Card"
         : `${UPI_APPS.find((a) => a.id === upiApp)?.label || "UPI"} (UPI)`;
 
     const hasDelivery = cart.some((item) => item.delivery);
 
-    const orderRecord = {
-      id: Date.now(),
-      ownerEmail: selectedShop.email,
-      shopName: selectedShop.shopName,
-      buyerEmail: currentUser.email || "",
-      buyerName: currentUser.name || "Guest",
-      items: cart.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        delivery: !!item.delivery,
-      })),
-      total: cartTotal,
-      paymentMethod,
-      paymentApp: paymentMethod === "upi" ? upiApp : null,
-      paymentLabel,
-      deliveryAvailable: hasDelivery,
-      status: "Placed",
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      // Saves the order in MongoDB
+      const res = await api.placeOrder({
+        shopEmail: selectedShop.email,
+        shopName: selectedShop.shopName,
+        items: cart.map((item) => ({
+          productId: item._id,
+          name: item.name,
+          price: item.price,
+        })),
+        paymentMethod,
+      });
 
-    const existingOrders =
-      JSON.parse(localStorage.getItem("orders")) || [];
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([orderRecord, ...existingOrders])
-    );
-
-    const notification = {
-      id: Date.now() + 1,
-      ownerEmail: selectedShop.email,
-      orderId: orderRecord.id,
-      message: `🛒 New order from ${orderRecord.buyerName} — ₹${cartTotal} via ${paymentLabel}`,
-      read: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    const existingNotifications =
-      JSON.parse(localStorage.getItem("notifications")) || [];
-
-    localStorage.setItem(
-      "notifications",
-      JSON.stringify([notification, ...existingNotifications])
-    );
-
-    setOrderTotal(cartTotal);
-    setLastOrder(orderRecord);
-    setView("success");
-    loadMyOrders(); // ── NEW: refresh My Orders / History right away
+      setOrderTotal(cartTotal);
+      setLastOrder({
+        ...res.order,
+        paymentLabel,
+        deliveryAvailable: hasDelivery,
+      });
+      setView("success");
+      loadMyOrders(); // refresh My Orders / History from the database
+    } catch (err) {
+      alert(err.message || "Failed to place order. Please try again.");
+    }
   };
 
   const startNewOrder = () => {
@@ -683,7 +665,7 @@ const UserDashboard = ({ onLogout }) => {
                       </p>
                     ) : (
                       filteredProducts.map((p) => (
-                        <div key={p.id} className="product">
+                        <div key={p._id} className="product">
                           <img
                             src={p.image || "https://via.placeholder.com/250"}
                             alt={p.name}

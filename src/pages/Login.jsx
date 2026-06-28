@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -21,76 +22,45 @@ const Login = () => {
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    const users =
-      JSON.parse(localStorage.getItem("users")) || [];
+    try {
+      // Real login: backend checks email/password against MongoDB
+      const res = await api.login({
+        email: data.email.trim(),
+        password: data.password,
+      });
 
-    const user = users.find(
-      (u) =>
-        u.email?.trim().toLowerCase() ===
-          data.email.trim().toLowerCase() &&
-        u.password === data.password
-    );
+      // Save JWT token (needed for every protected request) and a small
+      // copy of the user profile so the UI knows who's logged in.
+      // The database (MongoDB) is the real source of truth now, not this.
+      localStorage.setItem("token", res.token);
+      localStorage.setItem("currentUser", JSON.stringify(res.user));
 
-    if (!user) {
-      setError(
-        "Invalid email or password. Please try again."
-      );
-      return;
-    }
+      const role = (res.user.role || "").toLowerCase();
 
-    if (!user.role) {
-      setError(
-        "User role not found. Please register again."
-      );
-      return;
-    }
+      switch (role) {
+        case "admin":
+          navigate("/admin");
+          break;
 
-    // Store current user
-    localStorage.setItem(
-      "currentUser",
-      JSON.stringify(user)
-    );
+        case "owner":
+          navigate("/owner");
+          break;
 
-    // Store login history for Admin Dashboard
-    const loginHistory =
-      JSON.parse(
-        localStorage.getItem("loginHistory")
-      ) || [];
+        case "user":
+          navigate("/user");
+          break;
 
-    loginHistory.push({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      loginTime: new Date().toLocaleString(),
-    });
-
-    localStorage.setItem(
-      "loginHistory",
-      JSON.stringify(loginHistory)
-    );
-
-    switch (user.role.toLowerCase()) {
-      case "admin":
-        navigate("/admin");
-        break;
-
-      case "owner":
-        navigate("/owner");
-        break;
-
-      case "user":
-        navigate("/user");
-        break;
-
-      default:
-        setError("Invalid user role.");
-        localStorage.removeItem(
-          "currentUser"
-        );
+        default:
+          setError("Invalid user role.");
+          localStorage.removeItem("currentUser");
+          localStorage.removeItem("token");
+      }
+    } catch (err) {
+      setError(err.message || "Invalid email or password. Please try again.");
     }
   };
 

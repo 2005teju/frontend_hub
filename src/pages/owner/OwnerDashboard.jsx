@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import api from "../../api";
 
 const CATEGORY_OPTIONS = [
   "Vegetables",
@@ -17,20 +18,17 @@ const OwnerDashboard = ({ onLogout }) => {
   const currentUser =
     JSON.parse(localStorage.getItem("currentUser")) || {};
 
-  const savedShop =
-    JSON.parse(localStorage.getItem(`shop_${currentUser.email}`)) || {};
-
   const [approved, setApproved] = useState(false);
   const [active, setActive] = useState("dashboard");
 
   const [owner, setOwner] = useState({
-    name: savedShop.name || currentUser.name || "",
-    phone: savedShop.phone || "",
-    shopName: savedShop.shopName || "",
-    address: savedShop.address || "",
-    gstId: savedShop.gstId || "",
-    customerLicense: savedShop.customerLicense || "",
-    verified: savedShop.verified || false,
+    name: currentUser.name || "",
+    phone: "",
+    shopName: "",
+    address: "",
+    gstId: "",
+    customerLicense: "",
+    verified: false,
   });
 
   const [products, setProducts] = useState([]);
@@ -51,17 +49,41 @@ const OwnerDashboard = ({ onLogout }) => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-    const ownerUser = users.find((u) => u.email === currentUser.email);
-    setApproved(ownerUser?.approved || false);
+  const loadData = async () => {
+    try {
+      // Approval status comes straight from the database (User.approved)
+      const me = await api.getMe();
+      setApproved(me.user.approved || false);
 
-    const allProducts =
-      JSON.parse(localStorage.getItem("products")) || [];
-    setProducts(
-      allProducts.filter((p) => p.ownerEmail === currentUser.email)
-    );
+      // Shop details from the database
+      const shopRes = await api.getMyShop();
+      if (shopRes.shop) {
+        setOwner({
+          name: shopRes.shop.name || currentUser.name || "",
+          phone: shopRes.shop.phone || "",
+          shopName: shopRes.shop.shopName || "",
+          address: shopRes.shop.address || "",
+          gstId: shopRes.shop.gstId || "",
+          customerLicense: shopRes.shop.customerLicense || "",
+          verified: shopRes.shop.verified || false,
+        });
+      }
 
+      // Products from the database (only this owner's own products)
+      if (shopRes.shop && shopRes.shop.verified) {
+        const myProducts = await api.getMyProducts();
+        setProducts(myProducts);
+      } else {
+        setProducts([]);
+      }
+    } catch (err) {
+      console.error("Failed to load owner data:", err.message);
+    }
+
+    // NOTE: the backend does not yet have endpoints for "orders received by
+    // shop" or "owner notifications" (only a per-user order history exists).
+    // Until that's added on the backend, these two stay on localStorage so
+    // the UI doesn't break - everything else above is now real database data.
     const allNotifications =
       JSON.parse(localStorage.getItem("notifications")) || [];
     setNotifications(
@@ -107,7 +129,7 @@ const OwnerDashboard = ({ onLogout }) => {
     }));
   };
 
-  const saveShopDetails = () => {
+  const saveShopDetails = async () => {
     const shopData = {
       name: owner.name.trim(),
       phone: owner.phone.trim(),
@@ -115,7 +137,6 @@ const OwnerDashboard = ({ onLogout }) => {
       address: owner.address.trim(),
       gstId: owner.gstId.trim(),
       customerLicense: owner.customerLicense.trim(),
-      verified: savedShop.verified || false,
     };
 
     if (
@@ -130,89 +151,50 @@ const OwnerDashboard = ({ onLogout }) => {
       return;
     }
 
-    localStorage.setItem(
-      `shop_${currentUser.email}`,
-      JSON.stringify(shopData)
-    );
-
-    const requests =
-      JSON.parse(localStorage.getItem("shopVerificationRequests")) || [];
-
-    const index = requests.findIndex((r) => r.email === currentUser.email);
-
-    const requestData = {
-      email: currentUser.email,
-      ...shopData,
-      approved: false,
-    };
-
-    if (index >= 0) {
-      requests[index] = requestData;
-    } else {
-      requests.push(requestData);
+    try {
+      // Saves the shop in MongoDB and submits it for admin verification
+      const res = await api.saveShop(shopData);
+      setOwner({ ...shopData, verified: res.shop.verified });
+      alert(res.message || "Shop details saved successfully waiting for admin verification.");
+    } catch (err) {
+      alert(err.message || "Failed to save shop details.");
     }
-
-    localStorage.setItem(
-      "shopVerificationRequests",
-      JSON.stringify(requests)
-    );
-
-    setOwner(shopData);
-    alert("Shop details saved successfully waiting for admin verification.");
   };
 
-  const addProduct = () => {
+  const addProduct = async () => {
     if (!form.name || !form.price || !form.quantity || !form.category) {
       alert("Please enter product name, price, quantity and category.");
       return;
     }
 
-    const newProduct = {
-      id: Date.now(),
-      ownerEmail: currentUser.email,
-      ownerName: currentUser.name,
-      shopName: owner.shopName,
-      name: form.name,
-      price: form.price,
-      quantity: form.quantity,
-      category: form.category,
-      image: form.image,
-      description: form.description,
-      delivery: form.delivery,
-      quality: "Pending",
-    };
+    try {
+      // Saves the product in MongoDB
+      const res = await api.addProduct(form);
+      setProducts((prev) => [...prev, res.product]);
 
-    const allProducts =
-      JSON.parse(localStorage.getItem("products")) || [];
-    const updatedProducts = [...allProducts, newProduct];
+      setForm({
+        name: "",
+        price: "",
+        quantity: "",
+        category: "",
+        image: "",
+        description: "",
+        delivery: false,
+      });
 
-    localStorage.setItem("products", JSON.stringify(updatedProducts));
-    setProducts(
-      updatedProducts.filter((p) => p.ownerEmail === currentUser.email)
-    );
-
-    setForm({
-      name: "",
-      price: "",
-      quantity: "",
-      category: "",
-      image: "",
-      description: "",
-      delivery: false,
-    });
-
-    alert("Product Added Successfully.");
+      alert(res.message || "Product Added Successfully.");
+    } catch (err) {
+      alert(err.message || "Failed to add product.");
+    }
   };
 
-  const deleteProduct = (id) => {
-    const allProducts =
-      JSON.parse(localStorage.getItem("products")) || [];
-    const updatedProducts = allProducts.filter((p) => p.id !== id);
-
-    localStorage.setItem("products", JSON.stringify(updatedProducts));
-    setProducts(
-      updatedProducts.filter((p) => p.ownerEmail === currentUser.email)
-    );
+  const deleteProduct = async (id) => {
+    try {
+      await api.deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p._id !== id));
+    } catch (err) {
+      alert(err.message || "Failed to delete product.");
+    }
   };
 
   const navItems = [
@@ -577,7 +559,7 @@ const OwnerDashboard = ({ onLogout }) => {
                         <p>No products added yet.</p>
                       ) : (
                         products.map((p) => (
-                          <div key={p.id} className="product-card">
+                          <div key={p._id} className="product-card">
                             <img
                               src={p.image || "https://via.placeholder.com/250"}
                               alt={p.name}
@@ -595,7 +577,7 @@ const OwnerDashboard = ({ onLogout }) => {
                             <p><strong>Quality:</strong> {p.quality}</p>
                             <button
                               className="delete-btn"
-                              onClick={() => deleteProduct(p.id)}
+                              onClick={() => deleteProduct(p._id)}
                             >
                               Delete Product
                             </button>

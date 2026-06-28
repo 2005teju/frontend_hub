@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import api from "../../api";
 
 export default function AdminDashboard({ onLogout }) {
   const [active, setActive] = useState("overview");
@@ -17,25 +18,38 @@ export default function AdminDashboard({ onLogout }) {
     loadData();
   }, []);
 
-  const loadData = () => {
-    const storedUsers =
-      JSON.parse(localStorage.getItem("users")) || [];
+  const loadData = async () => {
+    try {
+      // All of this now comes straight from MongoDB through the backend API
+      const [storedUsers, storedProducts, pendingShops, storedMessages] =
+        await Promise.all([
+          api.getUsers(),
+          api.getAllProducts(),
+          api.getPendingShops(),
+          api.getMessages(),
+        ]);
 
-    const storedProducts =
-      JSON.parse(localStorage.getItem("products")) || [];
+      setUsers(storedUsers);
+      setProducts(storedProducts);
 
-    const storedShopRequests =
-      JSON.parse(
-        localStorage.getItem("shopVerificationRequests")
-      ) || [];
+      // Shape pending shops the way this page expects (email/name/etc.)
+      setShopRequests(
+        pendingShops.map((s) => ({
+          email: s.ownerEmail,
+          name: s.name,
+          shopName: s.shopName,
+          phone: s.phone,
+          address: s.address,
+          gstId: s.gstId,
+          customerLicense: s.customerLicense,
+          approved: s.verified,
+        }))
+      );
 
-    const storedMessages =
-      JSON.parse(localStorage.getItem("contactMessages")) || [];
-
-    setUsers(storedUsers);
-    setProducts(storedProducts);
-    setShopRequests(storedShopRequests);
-    setMessages(storedMessages);
+      setMessages(storedMessages);
+    } catch (err) {
+      console.error("Failed to load admin data:", err.message);
+    }
   };
 
   const totalUsers = users.filter((u) => u.role === "user").length;
@@ -72,38 +86,42 @@ export default function AdminDashboard({ onLogout }) {
   const currentTab =
     navItems.find((n) => n.key === active) || navItems[0];
 
-  const approveOwner = (email) => {
-    const updatedUsers = users.map((u) =>
-      u.email === email ? { ...u, approved: true } : u
-    );
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
-    setUsers(updatedUsers);
-    alert("Owner Approved Successfully");
+  const approveOwner = async (email) => {
+    try {
+      await api.approveOwner(email);
+      const updatedUsers = users.map((u) =>
+        u.email === email ? { ...u, approved: true } : u
+      );
+      setUsers(updatedUsers);
+      alert("Owner Approved Successfully");
+    } catch (err) {
+      alert(err.message || "Failed to approve owner");
+    }
   };
 
-  const approveShop = (email) => {
-    const shop =
-      JSON.parse(localStorage.getItem(`shop_${email}`)) || {};
-    shop.verified = true;
-    localStorage.setItem(`shop_${email}`, JSON.stringify(shop));
-
-    const updatedRequests = shopRequests.map((r) =>
-      r.email === email ? { ...r, approved: true } : r
-    );
-    localStorage.setItem(
-      "shopVerificationRequests",
-      JSON.stringify(updatedRequests)
-    );
-    setShopRequests(updatedRequests);
-    alert("Shop Verified Successfully");
+  const approveShop = async (email) => {
+    try {
+      await api.verifyShop(email);
+      const updatedRequests = shopRequests.map((r) =>
+        r.email === email ? { ...r, approved: true } : r
+      );
+      setShopRequests(updatedRequests);
+      alert("Shop Verified Successfully");
+    } catch (err) {
+      alert(err.message || "Failed to verify shop");
+    }
   };
 
-  const updateQuality = (id, quality) => {
-    const updatedProducts = products.map((p) =>
-      p.id === id ? { ...p, quality } : p
-    );
-    localStorage.setItem("products", JSON.stringify(updatedProducts));
-    setProducts(updatedProducts);
+  const updateQuality = async (id, quality) => {
+    try {
+      await api.updateQuality(id, quality);
+      const updatedProducts = products.map((p) =>
+        p._id === id ? { ...p, quality } : p
+      );
+      setProducts(updatedProducts);
+    } catch (err) {
+      alert(err.message || "Failed to update quality");
+    }
   };
 
   // ── NEW: group products by owner (ownerEmail) for the accordion view ──
@@ -630,7 +648,7 @@ export default function AdminDashboard({ onLogout }) {
                       {isOpen && (
                         <div className="owner-accordion-body">
                           {group.items.map((p) => (
-                            <div key={p.id} className="product-card">
+                            <div key={p._id} className="product-card">
                               <h3>{p.name}</h3>
                               <p>Owner: {p.ownerName}</p>
                               <p>Price: ₹{p.price}</p>
@@ -647,7 +665,7 @@ export default function AdminDashboard({ onLogout }) {
                                 <select
                                   value={p.quality || ""}
                                   onChange={(e) =>
-                                    updateQuality(p.id, e.target.value)
+                                    updateQuality(p._id, e.target.value)
                                   }
                                 >
                                   <option value="">Select</option>

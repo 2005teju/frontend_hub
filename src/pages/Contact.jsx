@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import api from "../api";
 
 const Contact = () => {
     const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -9,35 +10,23 @@ const Contact = () => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.name || !form.email || !form.message) return;
 
         setIsLoading(true);
         setStatus("");
 
-        setTimeout(() => {
-            const newMessage = {
-                id: Date.now(),
-                ...form,
-                date: new Date().toLocaleDateString(),
-                time: new Date().toLocaleTimeString(),
-                sentAt: new Date().toISOString(), // ── NEW: added for admin dashboard timestamp
-                status: "Unread"
-            };
-
-            const existingMessages = JSON.parse(localStorage.getItem("messages") || "[]");
-            localStorage.setItem("messages", JSON.stringify([newMessage, ...existingMessages]));
-
-            // ── NEW: also save to contactMessages so admin dashboard can read it ──
-            const existingContactMessages = JSON.parse(localStorage.getItem("contactMessages") || "[]");
-            localStorage.setItem("contactMessages", JSON.stringify([newMessage, ...existingContactMessages]));
-            // ─────────────────────────────────────────────────────────────────────
-
-            setIsLoading(false);
-            setStatus("✨ Your message has been sent to the Hub. We'll be in touch soon!");
+        try {
+            // Saves the message to MongoDB through the backend (admin can read it later)
+            const res = await api.sendMessage(form);
+            setStatus(res.status || "✨ Your message has been sent to the Hub. We'll be in touch soon!");
             setForm({ name: "", email: "", message: "" });
-        }, 1500);
+        } catch (err) {
+            setStatus(err.message || "Something went wrong. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
