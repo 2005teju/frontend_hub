@@ -12,6 +12,10 @@ function Register() {
     role: "user",
   });
 
+  // ── NEW: show/hide toggles for Password and Confirm Password ──
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const handleChange = (e) => {
     setData({
       ...data,
